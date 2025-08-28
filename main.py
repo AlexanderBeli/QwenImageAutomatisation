@@ -1,5 +1,8 @@
+import json
 import os
+import platform
 import shutil
+import tempfile
 import time
 from pathlib import Path
 
@@ -8,26 +11,31 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
 class WatermarkRemover:
-    def __init__(self, qwen_chat_url, download_folder=None):
+    def __init__(self, qwen_chat_url, download_folder=None, user_data_dir=None):
         """
         Initialize the watermark removal automation
 
         Args:
             qwen_chat_url (str): URL to Qwen AI chat
             download_folder (str): Default download folder path
+            user_data_dir (str): Path to Chrome user data directory for persistent session
         """
         self.qwen_url = qwen_chat_url
         self.download_folder = download_folder or os.path.join(os.path.expanduser("~"), "Downloads")
+        self.user_data_dir = user_data_dir
         self.driver = None
         self.wait_timeout = 30
+        self.cookies_file = "qwen_cookies.json"
 
-    def setup_browser(self):
+    def setup_browser(self, use_existing_session=True):
         """Setup Chrome browser with appropriate options"""
         chrome_options = Options()
 
@@ -40,24 +48,257 @@ class WatermarkRemover:
         }
         chrome_options.add_experimental_option("prefs", prefs)
 
-        # Optional: Run headless (comment out if you want to see the browser)
-        # chrome_options.add_argument("--headless")
+        if use_existing_session:
+            # For macOS, use the default Chrome user data directory
+            system = platform.system()
+            if system == "Darwin":  # macOS
+                default_user_data = os.path.join(
+                    os.path.expanduser("~"), "Library", "Application Support", "Google", "Chrome"
+                )
 
-        # Additional options for stability
+                # Create a copy of the user data for automation to avoid conflicts
+                import tempfile
+
+                automation_profile = tempfile.mkdtemp(prefix="chrome_automation_")
+
+                try:
+                    # Copy the existing Chrome profile
+                    import subprocess
+
+                    print("📋 Copying Chrome profile for automation...")
+
+                    # Copy only essential directories to avoid conflicts
+                    essential_dirs = ["Default"]  # Main profile directory
+                    for dir_name in essential_dirs:
+                        src_dir = os.path.join(default_user_data, dir_name)
+                        dst_dir = os.path.join(automation_profile, dir_name)
+
+                        if os.path.exists(src_dir):
+                            print(f"Copying {dir_name}...")
+                            shutil.copytree(src_dir, dst_dir, ignore=shutil.ignore_patterns("*Lock*", "Singleton*"))
+
+                    chrome_options.add_argument(f"--user-data-dir={automation_profile}")
+                    chrome_options.add_argument("--profile-directory=Default")
+                    print(f"✓ Using automation profile: {automation_profile}")
+
+                except Exception as e:
+                    print(f"⚠ Could not copy profile: {e}")
+                    print("Creating fresh profile with saved cookies...")
+                    chrome_options.add_argument(f"--user-data-dir={automation_profile}")
+        else:
+            # Create a fresh temporary profile
+            automation_profile = tempfile.mkdtemp(prefix="chrome_fresh_")
+            chrome_options.add_argument(f"--user-data-dir={automation_profile}")
+
+        # Additional options for stability and to avoid detection
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-web-security")
+        chrome_options.add_argument("--allow-running-insecure-content")
+        chrome_options.add_argument("--remote-debugging-port=9222")  # Enable remote debugging
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
 
-        # Initialize driver (make sure chromedriver is in PATH or specify path)
-        # service = Service("/path/to/chromedriver")  # Uncomment and set path if needed
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        # Try to initialize driver with error handling
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                self.driver = webdriver.Chrome(options=chrome_options)
+                self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+                print("✓ Chrome browser initialized successfully")
+                return self.driver
 
-        return self.driver
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if attempt == max_attempts - 1:
+                    print("❌ All attempts failed. Please make sure:")
+                    print("1. Chrome is completely closed")
+                    print("2. ChromeDriver is installed and in PATH")
+                    print("3. No other automation tools are using Chrome")
+                    raise e
+                time.sleep(2)
+
+        return None
+
+    def save_cookies(self):
+        """Save current session cookies to file"""
+        try:
+            import json
+
+            cookies = self.driver.get_cookies()
+            with open(self.cookies_file, "w") as f:
+                json.dump(cookies, f)
+            print("✓ Cookies saved")
+        except Exception as e:
+            print(f"✗ Error saving cookies: {e}")
+
+    def load_cookies(self):
+        """Load saved session cookies"""
+        try:
+            import json
+
+            if os.path.exists(self.cookies_file):
+                with open(self.cookies_file, "r") as f:
+                    cookies = json.load(f)
+
+                # Navigate to domain first
+                self.driver.get("https://chat.qwen.ai")
+                time.sleep(2)
+
+                # Add each cookie
+                for cookie in cookies:
+                    try:
+                        self.driver.add_cookie(cookie)
+                    except Exception as e:
+                        print(f"Warning: Could not add cookie {cookie.get('name', 'unknown')}: {e}")
+
+                print("✓ Cookies loaded")
+                return True
+        except Exception as e:
+            print(f"✗ Error loading cookies: {e}")
+        return False
+
+    def check_authentication(self):
+        """Check if user is authenticated and can access the chat"""
+        try:
+            # Navigate to the specific chat URL
+            self.driver.get(self.qwen_url)
+            time.sleep(3)
+
+            # Check if redirected to login page or main page
+            current_url = self.driver.current_url
+
+            # Common indicators of being logged out
+            logout_indicators = [
+                "login" in current_url.lower(),
+                "signin" in current_url.lower(),
+                "auth" in current_url.lower(),
+                current_url == "https://chat.qwen.ai/" or current_url == "https://chat.qwen.ai",
+                self.qwen_url not in current_url,
+            ]
+
+            if any(logout_indicators):
+                print("❌ Not authenticated - redirected from chat URL")
+        except Exception as e:
+            print(f"✗ Error checking authentication: {e}")
 
     def wait_for_element(self, by, value, timeout=None):
+        """Wait for element to be present and return it"""
+        timeout = timeout or self.wait_timeout
+        wait = WebDriverWait(self.driver, timeout)
+        return wait.until(EC.presence_of_element_located((by, value)))
+
+    def handle_authentication(self):
+        """Handle authentication process"""
+        print("🔐 Handling authentication...")
+
+        # Method 1: Try loading saved cookies
+        if self.load_cookies():
+            if self.check_authentication():
+                return True
+
+        # Method 2: Check if already logged in via Chrome profile
+        if self.check_authentication():
+            self.save_cookies()  # Save for next time
+            return True
+
+        # Method 3: Manual login prompt
+        print("\n" + "=" * 50)
+        print("MANUAL LOGIN REQUIRED")
+        print("=" * 50)
+        print("Please complete the following steps:")
+        print("1. The browser will open to Qwen AI")
+        print("2. Log in manually if needed")
+        print("3. Navigate to your specific chat URL")
+        print("4. Press ENTER here when ready to continue...")
+
+        # Navigate to login page
+        self.driver.get("https://chat.qwen.ai")
+
+        # Wait for manual login
+        input("Press ENTER when you have logged in and are ready to continue...")
+
+        # Navigate to specific chat
+        self.driver.get(self.qwen_url)
+        time.sleep(3)
+
+        # Verify authentication
+        if self.check_authentication():
+            self.save_cookies()  # Save for future use
+            print("✅ Authentication successful!")
+            return True
+        else:
+            print("❌ Authentication failed!")
+            return False
+
+            # Look for chat interface elements
+            chat_indicators = [
+                'textarea[placeholder*="message" i]',
+                'input[placeholder*="message" i]',
+                ".chat-input",
+                ".message-input",
+                '[data-testid="chat-input"]',
+            ]
+
+            for selector in chat_indicators:
+                try:
+                    element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if element.is_displayed():
+                        print("✓ Authenticated and chat interface found")
+                        return True
+                except NoSuchElementException:
+                    continue
+
+            print("⚠ Authentication unclear - no chat input found")
+            return False
+
+        # except Exception as e:
+        #     print(f"✗ Error checking authentication: {e}")
+        #     return False
+
+    def handle_authentication(self):
+        """Handle authentication process"""
+        print("🔐 Handling authentication...")
+
+        # Method 1: Try loading saved cookies
+        if self.load_cookies():
+            if self.check_authentication():
+                return True
+
+        # Method 2: Check if already logged in via Chrome profile
+        if self.check_authentication():
+            self.save_cookies()  # Save for next time
+            return True
+
+        # Method 3: Manual login prompt
+        print("\n" + "=" * 50)
+        print("MANUAL LOGIN REQUIRED")
+        print("=" * 50)
+        print("Please complete the following steps:")
+        print("1. The browser will open to Qwen AI")
+        print("2. Log in manually if needed")
+        print("3. Navigate to your specific chat URL")
+        print("4. Press ENTER here when ready to continue...")
+
+        # Navigate to login page
+        self.driver.get("https://chat.qwen.ai")
+
+        # Wait for manual login
+        input("Press ENTER when you have logged in and are ready to continue...")
+
+        # Navigate to specific chat
+        self.driver.get(self.qwen_url)
+        time.sleep(3)
+
+        # Verify authentication
+        if self.check_authentication():
+            self.save_cookies()  # Save for future use
+            print("✅ Authentication successful!")
+            return True
+        else:
+            print("❌ Authentication failed!")
+            return False
         """Wait for element to be present and return it"""
         timeout = timeout or self.wait_timeout
         wait = WebDriverWait(self.driver, timeout)
@@ -336,8 +577,17 @@ class WatermarkRemover:
         # Create output folder
         output_path.mkdir(exist_ok=True)
 
-        # Setup browser
-        self.setup_browser()
+        # Setup browser with existing session
+        driver = self.setup_browser(use_existing_session=True)
+        if not driver:
+            print("✗ Failed to setup browser")
+            return
+
+        # Handle authentication
+        if not self.handle_authentication():
+            print("✗ Authentication failed - cannot proceed")
+            self.driver.quit()
+            return
 
         try:
             # Process each brand folder
@@ -415,10 +665,33 @@ def main():
     IMAGES_FOLDER = "images"
     OUTPUT_FOLDER = "no_watermarks"
 
+    # Optional: Specify custom Chrome user data directory
+    # USER_DATA_DIR = "/path/to/your/chrome/profile"
+    USER_DATA_DIR = None  # Use default Chrome profile
+
     # Initialize and run
-    remover = WatermarkRemover(QWEN_CHAT_URL)
+    remover = WatermarkRemover(QWEN_CHAT_URL, user_data_dir=USER_DATA_DIR)
     remover.process_images(IMAGES_FOLDER, OUTPUT_FOLDER)
 
 
+def setup_authentication_only():
+    """Helper function to just set up authentication without processing images"""
+    QWEN_CHAT_URL = "https://chat.qwen.ai/c/720e0f7e-7a90-4b81-87cb-9fc1e1b85982"
+
+    remover = WatermarkRemover(QWEN_CHAT_URL)
+    remover.setup_browser(use_existing_session=True)
+
+    if remover.handle_authentication():
+        print("✅ Authentication setup complete!")
+        print("You can now run the main script.")
+    else:
+        print("❌ Authentication setup failed.")
+
+    remover.driver.quit()
+
+
 if __name__ == "__main__":
+    # Uncomment the next line to just set up authentication first
+    # setup_authentication_only()
+
     main()
