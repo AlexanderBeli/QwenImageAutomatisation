@@ -1,5 +1,6 @@
 # Chrome
-# Fix download button - save in not the best quality
+# Fix download button
+# Limit 50 pic / day
 import asyncio
 import json
 import os
@@ -15,7 +16,7 @@ from playwright.async_api import async_playwright
 
 
 class WatermarkRemover:
-    def __init__(self, qwen_chat_url, images_folder="images", output_folder="no_watermarks", user_data_dir=None):
+    def __init__(self, qwen_chat_url, images_folder="images2", output_folder="no_watermarks", user_data_dir=None):
         """
         Initialize the watermark removal automation with Chrome profile support
 
@@ -439,7 +440,7 @@ class WatermarkRemover:
     #     print("⚠ Generation timeout reached. Completion elements not found.")
     #     return False
 
-    async def wait_for_generation(self, max_wait_time=45):
+    async def wait_for_generation(self, max_wait_time=20):
         """
         Improved wait logic that checks for completion of the most recent response
         """
@@ -743,7 +744,7 @@ class WatermarkRemover:
 
             # Step 3: Wait for generation
             await asyncio.sleep(5)
-            generation_success = await self.wait_for_generation(max_wait_time=45)
+            generation_success = await self.wait_for_generation(max_wait_time=20)
             if not generation_success:
                 print("⚠ Generation may not be complete, but continuing...")
 
@@ -933,7 +934,7 @@ def create_folder_structure():
     """Helper function to create the expected folder structure"""
     print("📁 Creating folder structure for watermark removal...")
 
-    images_folder = Path("images")
+    images_folder = Path("images2")
     output_folder = Path("no_watermarks")
 
     # Create main folders
@@ -968,7 +969,7 @@ async def main():
 
     # Configuration
     QWEN_CHAT_URL = "https://chat.qwen.ai/c/720e0f7e-7a90-4b81-87cb-9fc1e1b85982"
-    IMAGES_FOLDER = "images"
+    IMAGES_FOLDER = "images2"
     OUTPUT_FOLDER = "no_watermarks"
 
     print(f"📂 Input folder: {IMAGES_FOLDER}")
@@ -1014,7 +1015,7 @@ if __name__ == "__main__":
         else:
             print("🚀 Starting main processing...")
             # Check if images folder exists
-            if not Path("images").exists():
+            if not Path("images2").exists():
                 print("❌ Images folder not found!")
                 print("Creating folder structure first...")
                 create_folder_structure()
