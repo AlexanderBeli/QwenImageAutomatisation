@@ -4,6 +4,7 @@
 
 - **main.py** - full circle with playwright: любой сложности, 50 - 60 изображений в день с одного аккаунта
 - **selenium_cookies.py** - get Chrome cookies by selenium
+- **easy_remover.py** - clean simple watermark on the [site](toolsmart.ai)
 - **main_proxies.py** + **dynamic_multiprocess.py** - создает 8 - 12 воркеров, в каждом запускается proxy + Chrome + cookies = 5 картинок без регистрации, затем браузер закрывается и начинается вновь. Результат 185 - 390 картинок / час
 
 ```bash
