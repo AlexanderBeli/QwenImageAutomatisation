@@ -1,4 +1,3 @@
-# improved_dynamic.py
 # Улучшенная версия: 5 картинок на браузер + циклические прокси
 import json
 import os
@@ -26,7 +25,7 @@ def worker_process(worker_id, task_queue, stats, all_proxies_data, batch_size=5)
 
     try:
         # Читаем оригинальный код
-        with open("main_proxies5.py", "r", encoding="utf-8") as f:
+        with open("main_proxies.py", "r", encoding="utf-8") as f:
             original_code = f.read()
 
         # Модификация для работы с батчами и циклическими прокси
@@ -350,8 +349,8 @@ class ImprovedMultiprocessManager:
             print(f"Images folder not found: {self.images_folder}")
             return
 
-        if not Path("main_proxies5.py").exists():
-            print("main_proxies5.py not found!")
+        if not Path("main_proxies.py").exists():
+            print("main_proxies.py not found!")
             return
 
         self.output_folder.mkdir(exist_ok=True)
@@ -497,9 +496,9 @@ if __name__ == "__main__":
             print("Proxies file 'proxies.txt' not found!")
             exit(1)
 
-        if not Path("main_proxies5.py").exists():
-            print("Base file 'main_proxies5.py' not found!")
-            print("Please rename main_proxies6.py to main_proxies5.py")
+        if not Path("main_proxies.py").exists():
+            print("Base file 'main_proxies.py' not found!")
+            print("Please rename main_proxies6.py to main_proxies.py")
             exit(1)
 
         # Запуск

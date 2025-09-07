@@ -1,4 +1,4 @@
-# compare images VS no_watermarks
+# compare images2 VS no_watermarks
 import os
 import shutil
 from pathlib import Path
@@ -100,7 +100,7 @@ def get_directory_structure(path, max_depth=3, current_depth=0):
 
 if __name__ == "__main__":
     # Можете изменить пути к папкам здесь
-    IMAGES_DIR = "images"
+    IMAGES_DIR = "images2"
     NO_WATERMARKS_DIR = "no_watermarks"
     SORTED_DIR = "sorted_images"
 
