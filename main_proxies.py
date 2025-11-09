@@ -98,68 +98,16 @@ class WatermarkRemover:
         self.batch_size = batch_size
         self.playwright = None
         self.browser = None
+        self.context = None  # Добавлено для совместимости
         self.page = None
         self.supported_formats = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"}
         self.proxy_manager = ProxyManager()
-
-    async def setup_browser_with_proxy(self, proxy_config=None):
-        """Setup Playwright browser with proxy support"""
-        self.playwright = await async_playwright().start()
-
-    async def setup_browser_with_proxy(self, proxy_config=None):
-        """Setup Playwright browser with proxy support"""
-        self.playwright = await async_playwright().start()
 
     async def setup_browser_with_proxy(self, proxy_config=None):
         """Setup Playwright browser with proxy support and fresh session"""
         self.playwright = await async_playwright().start()
 
         # Enhanced browser arguments to look more human-like
-        browser_args = [
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-blink-features=AutomationControlled",
-            "--disable-web-security",
-            "--allow-running-insecure-content",
-            "--disable-features=VizDisplayCompositor",
-            "--disable-extensions-except",
-            "--disable-plugins-discovery",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--disable-default-apps",
-            "--disable-popup-blocking",
-            "--disable-translate",
-            "--disable-backgrounding-occluded-windows",
-            "--disable-renderer-backgrounding",
-            "--disable-field-trial-config",
-            "--disable-back-forward-cache",
-            "--disable-ipc-flooding-protection",
-            # Additional stealth parameters
-            "--disable-automation",
-            "--disable-dev-shm-usage",
-            "--no-zygote",
-            "--no-sandbox",
-            "--disable-gpu-sandbox",
-            "--disable-software-rasterizer",
-            "--disable-background-timer-throttling",
-            "--disable-backgrounding-occluded-windows",
-            "--disable-renderer-backgrounding",
-            "--disable-features=TranslateUI",
-            "--disable-extensions",
-            # Use a fresh user data directory for each session
-            f"--user-data-dir={tempfile.mkdtemp()}",
-            f"--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        ]
-
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            print(f"Launching browser (attempt {attempt + 1}/{max_attempts})...")
-
-    async def setup_browser_with_proxy(self, proxy_config=None):
-        """Setup Playwright browser with proxy support and fresh session"""
-        self.playwright = await async_playwright().start()
-
-        # Enhanced browser arguments to look more human-like (removed user-data-dir from args)
         browser_args = [
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -209,6 +157,7 @@ class WatermarkRemover:
                         channel="chrome",  # Use system Chrome if available
                     )
                     # With persistent context, browser is actually the context
+                    self.context = self.browser  # Для совместимости
                     self.page = self.browser.pages[0] if self.browser.pages else await self.browser.new_page()
                 else:
                     print("Launching browser without proxy...")
@@ -223,6 +172,7 @@ class WatermarkRemover:
                         ignore_default_args=["--enable-automation"],
                         channel="chrome",
                     )
+                    self.context = self.browser  # Для совместимости
                     self.page = self.browser.pages[0] if self.browser.pages else await self.browser.new_page()
 
                 # Generate realistic user agent variations
@@ -431,7 +381,6 @@ class WatermarkRemover:
         except Exception as e:
             print(f"Error in behavior simulation: {e}")
 
-    # Remove the problematic methods that are causing errors
     async def create_fresh_session_per_proxy(self):
         """Simplified session creation"""
         return True
@@ -1332,168 +1281,12 @@ class WatermarkRemover:
                 print("Pausing before next proxy session...")
                 await asyncio.sleep(10)
 
-        print(f"\n Processing complete!")
+        print(f"\nProcessing complete!")
         print(f"Total images processed successfully: {total_processed}")
         print(f"Total images failed: {total_failed}")
 
 
-def create_cookies_file_with_real_data():
-    """Create cookies file with your real authentication data"""
-    real_cookies = [
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1756378384,
-            "httpOnly": False,
-            "name": "ssxmod_itna2",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "YqUxBD0Du7T49D4qeqY5q7jo0jYiQDRiiDl4BtGRlDIqe7=GFKDCrOz8DmC+DAI5PeznwipzYKjqD=mDDPEwmWKe03Bfi=8obm3gpWbzV4tnGRweSf/d4xD",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1771928580,
-            "httpOnly": False,
-            "name": "isg",
-            "path": "/",
-            "sameSite": "None",
-            "secure": True,
-            "value": "BKKiFyG4Pk2mYCKFRG6wavKr8y4E86YNQMmcm-w7zpXBv0I51IP2HSi96uND_h6l",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1771928580,
-            "httpOnly": False,
-            "name": "tfstk",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "gI--WU6umxe8n6NzeB00Kg6QAfHDeqvrGQJ_x6fuRIdvOQMzxp_uOkdAiYJlVbRYG9BBr6MUVkKACBe5OL1CJ-6hMWNSa2-xcCdFFUbS8-ZfET6B9pkPd6OB96YoocvyUMSIsgnijLJAJmGp2MNHhgWHYMDtucvyU-agM0tijJp1MGW5OB_5GZ6NGTw7ABsfGTfbV9Z5dSMALssQP_ZCGt6NdkaBOMMvhsWCATOCPxpfg9sCOfe306uCskL-Hg4-fAX7AktAeanMFsZC3nBRy195PkZBQTQR1L1jNi_ThwdRynm8_TLXBQXJTcrPVwLW5gtK60IXQEA5HBGTJsT94HQM2fUNN35e6gTxGuICq3LG7M3TUtxJhh7p4bEfwIJXSg-sgkd6ndxPuHhTG68lQi6JkvafNwszdhx9OfPG694SHxUU8a6V6aMPJcYEWjXAsxA78y7Y7tCiH4zU8a6VH1D0kyzFkFC..",
-        },
-        {
-            "domain": "chat.qwen.ai",
-            "expiry": 1756981380,
-            "httpOnly": True,
-            "name": "token",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjVkNmVmYzg0LTUxMTQtNGFlYi04ZWFhLWExZTg3YzQ3YTU0OSIsImxhc3RfcGFzc3dvcmRfY2hhbmdlIjoxNzU1ODU4MTk4LCJleHAiOjE3NTY5ODEzODB9.ZiJdo-sqTKM_YRg7Nc-FEh4aFAJGVCmcCnVr7-pIhb4",
-        },
-        {
-            "domain": ".qwen.ai",
-            "httpOnly": False,
-            "name": "atpsida",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "7393dbadb42aa86b56da1519_1756376581_1",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1756378384,
-            "httpOnly": False,
-            "name": "ssxmod_itna",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "YqUxBD0Du7T49D4qeqY5q7jo0jYiQDRiiDl4BtGRlDIqe7=GFKDCrOz8DmC+DAI5PeznwipzYKjqD=MD0ymzmDY5GSGxi3Dar4KUbTziDrNATzFARm1m5nlbMoQznlD+IQ88Xjby=z3Xoq4wmmDAEY0DGmD0=DAqPD7k5cDYYDC4GwDGoD34DiDDP3xDUrhePD72udylu4rE2YGnuLiOriirfCxivadZWNdWxNxD3EDB=au82aKPPQDY6=GKPileDLR1PANzrDbEoQN/7Dtq7K27IiocWWlIePjdzb32xbSgXoQA4pFBxIKG/WilziPiGxYrV4w/0rbWTo3xTY9tAHPa47YhB3ygFWSYx4grzeE13riK0qKuqQirYntlxiebNQGbt4xUHPf0VY0DSrbfHPeD",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1790936581,
-            "httpOnly": False,
-            "name": "cnaui",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "5d6efc84-5114-4aeb-8eaa-a1e87c47a549",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1756635781,
-            "httpOnly": False,
-            "name": "xlly_s",
-            "path": "/",
-            "sameSite": "None",
-            "secure": True,
-            "value": "1",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1790936581,
-            "httpOnly": False,
-            "name": "cna",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "xUYrIeIptzgCAS7wu5GwY2oh",
-        },
-        {
-            "domain": "chat.qwen.ai",
-            "expiry": 1771928579,
-            "httpOnly": False,
-            "name": "_bl_uid",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "0pms0eX1v7g9019b6msnjnXoeggI",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1764152579,
-            "httpOnly": False,
-            "name": "_gcl_au",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "1.1.124207464.1756376579",
-        },
-        {
-            "domain": ".qwen.ai",
-            "expiry": 1790936582,
-            "httpOnly": False,
-            "name": "aui",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "5d6efc84-5114-4aeb-8eaa-a1e87c47a549",
-        },
-        {
-            "domain": ".qwen.ai",
-            "httpOnly": False,
-            "name": "sca",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "f0b02a33",
-        },
-        {
-            "domain": "chat.qwen.ai",
-            "httpOnly": False,
-            "name": "x-ap",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "eu-central-1",
-        },
-        {
-            "domain": "chat.qwen.ai",
-            "expiry": 1756378379,
-            "httpOnly": True,
-            "name": "acw_tc",
-            "path": "/",
-            "sameSite": "Lax",
-            "secure": False,
-            "value": "0a03e54a17563765791615117e1e8ff31d14874c348ebd9aaded2e2c2eb4aa",
-        },
-    ]
-
-    with open("qwen_cookies_real.json", "w") as f:
-        json.dump(real_cookies, f, indent=2)
-
-    print("Created qwen_cookies_real.json with your authentication data")
-    print("This should significantly reduce login modal appearances")
+def create_proxies_file():
     """Create example proxies.txt file"""
     example_content = """# Proxy format: host:port:username:password
 # Example:
@@ -1539,35 +1332,32 @@ if __name__ == "__main__":
             print(f"Running command: {command}")
 
             if command == "setup":
-                print("Creating folder structure and proxy file...")
-                # create_folder_structure()
-                # create_proxies_file()
+                print("Creating proxy file...")
+                create_proxies_file()
             elif command == "help":
                 print("Watermark Remover with Proxy Support Commands:")
-                print("  python script.py           - Run full processing with proxy rotation")
-                print("  python script.py setup     - Create folder structure and proxy file")
-                print("  python script.py help      - Show this help")
+                print("  python main_proxies.py           - Run full processing with proxy rotation")
+                print("  python main_proxies.py setup     - Create proxy file")
+                print("  python main_proxies.py help      - Show this help")
             else:
                 print(f"Unknown command: {command}")
-                print("Use 'python script.py help' for available commands")
+                print("Use 'python main_proxies.py help' for available commands")
         else:
             # Check prerequisites
             if not Path("images2").exists():
-                print("Images folder not found!")
-                print("Creating folder structure first...")
-                # create_folder_structure()
-                # print("Folder structure created. Please add your images and run again.")
+                print("❌ Images folder not found!")
+                print("Please create 'images2' folder and add your images")
             elif not Path("proxies.txt").exists():
-                print("Proxy file not found!")
-                # create_proxies_file()
+                print("❌ Proxy file not found!")
+                create_proxies_file()
                 print("Proxy file created. Please add your proxies and run again.")
             else:
                 asyncio.run(main())
 
     except KeyboardInterrupt:
-        print("\nProcess interrupted by user")
+        print("\n⚠ Process interrupted by user")
     except Exception as e:
-        print(f"Fatal error: {str(e)}")
+        print(f"❌ Fatal error: {str(e)}")
         import traceback
 
         traceback.print_exc()
